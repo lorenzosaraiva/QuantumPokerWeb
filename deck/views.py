@@ -48,14 +48,18 @@ class Table():
 	
 	def check(self):
 		player = self.players[self.current_player]
-		ret = "Player " + str(self.current_player) + " has checked."
+		response = ""
 		if player.current_bet == self.to_pay: # checa se player já cobriu aposta
 			self.checked_players = self.checked_players + 1
+			response = "Player " + str(self.current_player) + " has checked."
 			if self.checked_players == self.active_players: # acabou rodada de apostas
 				self.next_phase()
+				self.next_player()
 			else: #não acabou a rodada de apostas, passa pro proximo player
 				self.next_player()
-		return ret
+		else:
+			response = "Player has not yet covered all bets."
+		return response
 		#else:
 			# exception > players não pagou a aposta. Na real essa checagem idealmente seria feita a cada começo 
 			# de turno do player e desativaria o botão Check.
@@ -70,7 +74,7 @@ class Table():
 		total = amount + self.to_pay
 		if player.stack >= amount + self.to_pay:
 			self.current_pot = self.current_pot + total
-			self.checked_players = 0
+			self.checked_players = 1
 			self.to_pay = total
 			player.current_bet = player.current_bet + total
 			player.stack = player.stack - total
@@ -80,12 +84,20 @@ class Table():
 
 	def call (self):
 		player = self.players[self.current_player]
+		response = "Player " + str(self.current_player) + " "
 		if player.stack >= self.to_pay:
 			self.current_pot = self.current_pot + self.to_pay
+			player.stack = player.stack - self.to_pay
 			player.current_bet = self.to_pay
+			self.checked_players = self.checked_players + 1
+			if self.checked_players == self.active_players: # acabou rodada de apostas
+				self.next_phase()
 			self.next_player()
-		#else:
-		# player sem dinheiro, lidar com o caso do All In depois ()
+			response = response + "has called for " + str(self.to_pay) + " chips."
+			return response
+		else:
+			response = response + "has not enough to cover, so they went all in. NOT IMPLEMENTED YET."
+			return 
 
 	def fold (self):
 		del self.players[self.current_player]
@@ -101,6 +113,7 @@ class Table():
 	def next_phase(self):        
 		self.current_phase = self.current_phase + 1
 		self.checked_players = 0
+		self.to_pay = 0
 		if self.current_phase == 1:
 			print("FLOP")
 			print("Table:")
@@ -165,8 +178,19 @@ def index(request):
 
 def show_table(request):
 	table = cache.get('table')
-	response = str(table.flop1) + str(table.flop2) + str(table.flop3) + " Pot: " + str(table.current_pot) + " Active player is " + str(table.current_player) + ".\n"
+	response = "" 
 	i = 0
+	if table.current_phase >= 1:
+		response = response + str(table.flop1) + str(table.flop2) + str(table.flop3)
+
+	if table.current_phase >= 2:
+		response = response + str(table.turn)
+
+	if table.current_phase == 3:
+		response = response + str(table.river)
+
+	response = response + " Pot: " + str(table.current_pot) + " Active player is " + str(table.current_player) + ".\n"
+
 	for player in table.players:
 		response = response + " Player " + str(i) + " has " + str(player.stack) + " chips. \n"
 		i = i + 1
@@ -181,14 +205,20 @@ def build_hand(request):
 	table = Table(compute_draw_card(deck), compute_draw_card(deck), compute_draw_card(deck), 2, [player1, player2], deck)
 	cache.set('table', table)
 	
-	response = str(table.flop1) + str(table.flop2) + str(table.flop3) + str(table.current_pot)
-	return HttpResponse(response)
+	#response = str(table.flop1) + str(table.flop2) + str(table.flop3) + str(table.current_pot)
+	return HttpResponse("Hand Start!")
 
 def check(request):
 	table = cache.get('table')
 	response = table.check()
 	cache.set('table', table)
 	return HttpResponse(response)
+
+def call(request):
+	table = cache.get('table')
+	table.call()
+	cache.set('table', table)
+	return HttpResponse("")
 
 def raise_bet(request, amount=100):
 	table = cache.get('table')
