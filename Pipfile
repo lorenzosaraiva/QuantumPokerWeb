@@ -8,6 +8,7 @@ django = "*"
 cirq = "*"
 uuid = "*"
 numpy = "*"
+django-cors-headers = "*"
 
 [dev-packages]
 
