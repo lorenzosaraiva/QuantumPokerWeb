@@ -17,6 +17,6 @@ from django.contrib import admin
 from django.urls import include, path
 
 urlpatterns = [
-    path('QuantumPoker/', include('deck.urls')),
+    path('', include('deck.urls')),
     path('admin/', admin.site.urls),
 ]
