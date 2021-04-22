@@ -131,6 +131,9 @@ class Table():
 		self.players = self.all_players
 		# dar o dinheiro pro player vencedor e resetar tudo.
 
+	def get_active_player(self):
+		return self.players[self.current_player]
+
 	def next_phase(self):        
 		self.phase = self.phase + 1
 		self.checked_players = 0
@@ -167,6 +170,7 @@ class Table():
 			print(self.river)
 
 		if self.phase == 4:
+			#compute_players(self)
 			self.finish_hand()
 
 
@@ -188,20 +192,20 @@ def build_deck():
 	cache.set('deck', deck)
 	return deck 
 
-def view_deck(request):
+def view_deck (request):
 	return HttpResponse(cache.get('deck'))
 
-def compute_draw_card(deck):
+def compute_draw_card (deck):
 	deck = cache.get('deck', deck)
 	position = random.randint(0, len(deck) - 1)
 	card = deck.pop(position)
 	cache.set('deck', deck)
 	return card
 
-def index(request):
+def index (request):
 	return HttpResponse(build_deck())
 
-def show_table(request):
+def show_table (request):
 	table = cache.get('table')
 	response = "" 
 	i = 0
@@ -218,15 +222,18 @@ def show_table(request):
 
 	for player in table.players:
 		response = response + " Player " + str(i) + " has " + str(player.stack) + " chips and "
+		response = response + "("
 		for card in player.card1:
 			response = response + card.name
+		response = response + ") ("
 		for card in player.card2:
 			response = response + card.name
+		response = response + ")"
 		response = response + " as hand."
 		i = i + 1
 	return HttpResponse(response)
 
-def build_hand(request):
+def build_hand (request):
 	deck = build_deck()
 	
 	player1 = Player(Card(compute_draw_card(deck),0), Card(compute_draw_card(deck),0), cirq.LineQubit.range(10), 1, cirq.Circuit())
@@ -255,8 +262,92 @@ def raise_bet(request, amount=100):
 	table = cache.get('table')
 	table.raise_bet(amount)
 	cache.set('table', table)
-	return HttpResponse("")
+	return HttpResponse("Player raised")
 
-def draw_card(request):
+def draw_card (request):
 	return HttpResponse(compute_draw_card(cache.get('deck')))
+
+def quantum_draw (request):
+	#Caso o card esteja normal, transforma em qubit 
+	table = cache.get('table')
+	player = table.get_active_player()
+	card = player.card1
+	deck = cache.get('deck')
+	next_qubit = player.next_qubit1
+	offset = 0
+	entangle = 0
+
+	if not entangle:
+		player.circuit.append(cirq.H(player.qubits[next_qubit + offset]))
+
+	new_cards = []
+	for i in range(len(card)):
+		card[i].binary_position = (to_bin(i, next_qubit + 1))
+
+	i = 0
+
+	for i in range(pow(2, next_qubit)):
+
+		new_cards.append(Card(compute_draw_card(deck), to_bin((len(card) + i), next_qubit + 1)))
+		#print("Testando valores binários:")
+		#print(new_cards[i].name, end = ' ')
+		#print(new_cards[i].binary_position)
+
+	card = card + new_cards
+
+	if offset == 0:
+		player.next_qubit1 = player.next_qubit1 + 1
+	else:
+		player.next_qubit2 = player.next_qubit2 + 1
+
+	player.card1 = card
+	cache.set('table', table)
+
+	return HttpResponse("Player has quantum drawed.")
+
+def resolve_player (player, bits1, bits2):
+	if len(player.card1) > 1:
+		player.card1 = [player.card1.pop(int(bits1, 2))]
+
+	if len(player.card2) > 1:
+		player.card2 = [player.card2.pop(int(bits2, 2))]
+
+def measure_player (player):
+	for i in range(player.next_qubit1):
+		player.circuit.append(cirq.measure(player.qubits[i]))
+
+	for i in range(player.next_qubit2):
+		player.circuit.append(cirq.measure(player.qubits[i + 5]))
+
+
+def compute_players (table):
+	for player in table.players:
+		measure_player(player)
+
+	simulator = Simulator()
+	for player in table.players:
+		result = ''
+		if player.next_qubit1 != 0 or player.next_qubit2 != 0:
+			result = simulator.run(player.circuit)
+		res = str(result)
+		bits1 = ''
+		bits2 = ''
+		bit = ''
+		for i in range(len(res)):
+			if res[i] == '=':
+				bit = bit + str(res[i + 1])
+
+		if player.next_qubit1 > 0:
+			bits1 = bit[:player.next_qubit1]
+		if player.next_qubit2 > 0:
+			bits2 = bit[player.next_qubit1:]
+
+		resolve_player(player, bits1, bits2)
+
+	cache.set('table', table)
+
+
+def to_bin(x, n=0):
+	return format(x, 'b').zfill(n)
+
 

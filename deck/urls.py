@@ -11,4 +11,5 @@ urlpatterns = [
     path('raise_bet', views.raise_bet, name='raise_bet'),
     path('call', views.call, name='call'),
     path('check', views.check, name='check'),
+    path('quantum_draw', views.quantum_draw, name='quantum_draw'),
 ]
