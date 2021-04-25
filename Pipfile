@@ -9,8 +9,11 @@ cirq = "*"
 uuid = "*"
 numpy = "*"
 django-cors-headers = "*"
+pokereval = "*"
 
 [dev-packages]
+pylint = "*"
+autopep8 = "*"
 
 [requires]
 python_version = "3.6"
