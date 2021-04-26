@@ -72,19 +72,64 @@ class Table():
 		# exception > players não pagou a aposta. Na real essa checagem idealmente seria feita a cada começo
 		# de turno do player e desativaria o botão Check.
 
+	def check_JSON(self):
+		player = self.players[self.current_player]
+		response = ""
+		response_data = {}
+		if player.current_bet == self.to_pay:  # checa se player já cobriu aposta
+			self.checked_players = self.checked_players + 1
+			response = "Player " + str(self.current_player) + " has checked."
+			response_data['result'] = 1
+			if self.checked_players == self.active_players:  # acabou rodada de apostas
+				self.next_phase()
+			else:  # não acabou a rodada de apostas, passa pro proximo player
+				self.next_player()
+		else:
+			response = "Player has not yet covered all bets."
+			response_data['result'] = 0
+
+		response_data['log'] = response
+		response_data['stack'] = player.stack
+		response_data['pot'] = self.pot
+		response_data['phase'] = self.phase
+		return response_data
+		# else:
+		# exception > players não pagou a aposta. Na real essa checagem idealmente seria feita a cada começo
+		# de turno do player e desativaria o botão Check.
+
 	def next_player(self):
 		self.current_player = self.current_player + 1
 		if self.current_player == len(self.players):
 			self.current_player = 0
 
-	def raise_bet(self, amount):
+	def raise_JSON(self, amount):
 		player = self.players[self.current_player]
-		total = amount + self.to_pay
-		if player.stack >= amount + self.to_pay:
+		response_data = {}
+		total = amount + self.to_pay - player.current_bet 
+		if player.stack >= total:
 			self.pot = self.pot + total
 			self.checked_players = 1
-			self.to_pay = total
-			player.current_bet = player.current_bet + total
+			self.to_pay = amount + self.to_pay 
+			player.current_bet = self.to_pay
+			player.stack = player.stack - total
+			self.next_player()
+			response_data['result'] = 1
+			response_data['log'] = 'Player' + str(self.current_player) + ' has raised to ' + str(player.current_bet)
+			response_data['stack'] = player.stack
+			response_data['pot'] = self.pot
+			response_data['phase'] = self.phase
+			return response_data
+
+
+	def raise_bet(self, amount):
+		player = self.players[self.current_player]
+		response_data = {}
+		total = amount + self.to_pay - player.current_bet 
+		if player.stack >= total:
+			self.pot = self.pot + total
+			self.checked_players = 1
+			self.to_pay = amount + self.to_pay 
+			player.current_bet = self.to_pay
 			player.stack = player.stack - total
 			self.next_player()
 		# else:
@@ -316,6 +361,20 @@ def build_hand(request):
 	#response = str(table.flop1) + str(table.flop2) + str(table.flop3) + str(table.pot)
 	return HttpResponse("Hand Start!")
 
+def build_hand_JSON(request):
+	deck = build_deck()
+	player1 = Player(compute_draw_card(deck), compute_draw_card(deck), cirq.LineQubit.range(10), 1, cirq.Circuit())
+	player2 = Player(compute_draw_card(deck), compute_draw_card(deck), cirq.LineQubit.range(10), 2, cirq.Circuit())
+
+	table = Table(compute_draw_card(deck), compute_draw_card(deck), compute_draw_card(deck), [player1, player2], deck)
+	cache.set('table', table)
+	response_data = {}
+	card = {}
+	card['rank'] = player1.card1[0].power
+	card['suit'] = player1.card1[0].suit
+	response_data['P1C1'] = card
+	return HttpResponse(json.dumps(response_data), content_type="application/json")
+
 
 def check(request):
 	table = cache.get('table')
@@ -323,6 +382,11 @@ def check(request):
 	cache.set('table', table)
 	return HttpResponse(response)
 
+def check_JSON(request):
+	table = cache.get('table')
+	response_data = table.check_JSON()
+	cache.set('table', table)
+	return HttpResponse(json.dumps(response_data), content_type="application/json")
 
 def call(request):
 	table = cache.get('table')
@@ -342,6 +406,13 @@ def raise_bet(request, amount=100):
 	table.raise_bet(amount)
 	cache.set('table', table)
 	return HttpResponse("Player raised")
+
+def raise_JSON(request, amount=100):
+	table = cache.get('table')
+	response_data = table.raise_JSON(amount)
+	cache.set('table', table)
+	return HttpResponse(json.dumps(response_data), content_type="application/json")
+
 
 
 def draw_card(request):
