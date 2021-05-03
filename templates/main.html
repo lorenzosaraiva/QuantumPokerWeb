@@ -1,0 +1,23 @@
+<form>
+	Table: {{flop1}} {{flop2}} {{flop3}} {{turn}} {{river}} 
+	Pot: {{pot}} Active player is {{active_player}}. 
+	Player 0 has {{player0_stack}} chips and ({{player0_card1}}) ({{player0_card2}}) as hand. 
+	Player 1 has {{player1_stack}} chips and ({{player1_card1}}) ({{player1_card2}}) as hand.
+</form>
+
+<button type="submit" value={{active_player}} onclick="location.href='{% url 'check' %}'" name='checkbtn'>Check</button>
+<button type="submit" value={{active_player}} onclick="location.href='{% url 'call' %}'" name='checkbtn'>Call</button>
+<button type="submit" value={{active_player}} onclick="location.href='{% url 'fold' %}'" name='checkbtn'>Fold</button>
+<button type="submit" value={{active_player}} onclick="location.href='{% url 'quantum_draw' %}'" name='checkbtn'>Quantum Draw</button>
+
+
+<form class="forms-sample" name="form" action="{% url "raise_bet" %}" method="post">
+	{% csrf_token %}
+	<label for="bet">Bet Size:</label>
+	<input type="number"  name="bet" value="" >
+    <button type="Submit" value="Submit" name="Submit" class="btn btn-default"> Raise </button> 
+</form>
+
+
+<textarea id="log" name="log" rows="10" cols="50">
+{{log}}</textarea>
